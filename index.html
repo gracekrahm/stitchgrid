@@ -1,161 +1,226 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Knit Grid Editor</title>
-  <style>
-    body {
-      font-family: sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
+<meta charset="UTF-8">
+<title>Knit Chart Editor</title>
 
-    #controls {
-      margin: 10px;
-    }
+<style>
+  body {
+    font-family: sans-serif;
+    background: #f5f5f5;
+    text-align: center;
+  }
 
-    #container {
-      display: flex;
-      align-items: flex-start;
-    }
+  h1 {
+    margin-top: 20px;
+  }
 
-    #row-labels {
-      display: flex;
-      flex-direction: column;
-      margin-right: 5px;
-    }
+  #toolbar {
+    margin: 15px;
+  }
 
-    #col-labels {
-      display: flex;
-      justify-content: center;
-      margin-bottom: 5px;
-    }
+  .color-btn {
+    width: 30px;
+    height: 30px;
+    border: 2px solid #333;
+    margin: 3px;
+    cursor: pointer;
+    display: inline-block;
+  }
 
-    .label {
-      width: 20px;
-      height: 20px;
-      font-size: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
+  .selected {
+    outline: 3px solid black;
+  }
 
-    svg {
-      border: 1px solid #ccc;
-      background: #fafafa;
-    }
+  #chart-container {
+    display: flex;
+    justify-content: center;
+    margin-top: 10px;
+  }
 
-    .stitch-group {
-      cursor: pointer;
-    }
-  </style>
+  #row-labels {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    margin-right: 5px;
+  }
+
+  #col-labels {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 5px;
+  }
+
+  .label {
+    font-size: 10px;
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+</style>
 </head>
+
 <body>
 
-<div id="controls">
-  Color: <input type="color" id="colorPicker" value="#ff0000">
-</div>
+<h1>Knit Chart Editor</h1>
+
+<div id="toolbar"></div>
 
 <div id="col-labels"></div>
-
-<div id="container">
+<div id="chart-container">
   <div id="row-labels"></div>
   <svg id="chart" width="600" height="600"></svg>
 </div>
 
 <script>
-const rows = 20;
-const cols = 20;
-const svg = document.getElementById("chart");
-const colorPicker = document.getElementById("colorPicker");
+const rows = 30
+const cols = 30
+let stitchSize = 18
 
-let currentColor = colorPicker.value;
+const colors = ["#ffffff", "#d62828", "#1d3557", "#2a9d8f", "#f4a261"]
+let currentColor = colors[1]
 
-colorPicker.addEventListener("input", e => {
-  currentColor = e.target.value;
-});
+// grid data
+let grid = Array.from({length: rows}, () => Array(cols).fill(colors[0]))
 
-// --- SVG stitch paths (normalized, extracted from your Inkscape file) ---
-const LEFT_PATH = `M 595.09414,225.92349 C 593.08109,226.34138 592.04561,218.90275 591.80801,215.32305 591.57041,211.74335 591.88771,209.49846 591.70199,206.7367 591.51626,203.97494 591.47585,202.75156 591.278,199.99837 591.08013,197.24518 591.55998,190.92794 591.70199,186.36976 591.84402,181.81158 591.91209,177.784 592.12601,173.64922 592.33993,169.51444 592.0874,164.80793 592.97303,161.56471 593.85966,158.32149 595.13732,156.94423 596.57688,154.3564 598.01644,151.76857 599.86414,148.95109 601.66509,146.08806 603.46604,143.22503 605.57017,139.75603 607.38595,137.18369 609.20173,134.61135 610.66393,132.66343 612.46978,130.61141 614.27563,128.55939 616.03434,126.70378 618.18909,124.88718 620.34384,123.07058 621.84509,119.15504 625.39116,119.79896 628.93723,120.44288 630.97167,126.64396 632.59324,130.39941 634.21481,134.15486 634.66157,138.2266 635.13517,141.84788 635.60877,145.46916 635.64377,148.83712 635.55881,152.02431 635.47385,155.2115 635.19582,157.77691 634.71248,160.92869 634.22914,164.08047 633.53251,167.21131 632.59421,170.8931 631.65591,174.57489 630.8875,179.53522 628.99318,182.97761 627.09886,186.42 624.92605,189.35796 622.85022,192.094 620.77439,194.83004 618.65814,195.91557 616.49543,199.30229 614.33272,202.68901 611.52241,208.07327 608.8697,211.59881 606.21699,215.12435 604.1429,218.02255 601.66762,221.13921 599.19234,224.25587 596.10066,227.71454 595.09414,225.92349 Z`;
+const svg = document.getElementById("chart")
+const toolbar = document.getElementById("toolbar")
+const rowLabels = document.getElementById("row-labels")
+const colLabels = document.getElementById("col-labels")
 
-const RIGHT_PATH = `M 587.37085,225.92349 C 588.37651,226.13243 590.41675,218.90275 590.65415,215.32305 590.89155,211.74335 590.57445,209.49846 590.76005,206.7367 590.94565,203.97494 590.98605,202.75156 591.18375,199.99837 591.38145,197.24518 590.90202,190.92794 590.76005,186.36976 590.61808,181.81158 590.55001,177.784 590.33605,173.64922 590.12209,169.51444 590.37462,164.80793 589.48869,161.56471 588.60276,158.32149 587.32591,156.94423 585.8876,154.3564 584.44929,151.76857 582.60319,148.95109 580.80379,146.08806 579.00439,143.22503 576.90026,139.75603 575.08448,137.18369 573.2687,134.61135 571.8065,132.66343 570.00065,130.61141 568.1948,128.55939 566.43609,126.70378 564.28134,124.88718 562.12659,123.07058 560.62534,119.15504 557.07927,119.79896 553.5332,120.44288 551.49876,126.64396 549.87719,130.39941 548.25562,134.15486 547.80886,138.2266 547.33526,141.84788 546.86166,145.46916 546.82666,148.83712 546.91162,152.02431 546.99658,155.2115 547.27461,157.77691 547.75795,160.92869 548.24129,164.08047 548.93792,167.21131 549.87622,170.8931 550.81452,174.57489 551.58293,179.53522 553.47725,182.97761 555.37157,186.42 557.54438,189.35796 559.62021,192.094 561.69604,194.83004 563.81229,195.91557 565.975,199.30229 568.13771,202.68901 570.94802,208.07327 573.60073,211.59881 576.25344,215.12435 578.32753,218.02255 580.80281,221.13921 583.27809,224.25587 586.36977,227.71454 587.37085,225.92349 Z`;
+// ---------- COLOR PALETTE ----------
+colors.forEach(color => {
+  const btn = document.createElement("div")
+  btn.className = "color-btn"
+  btn.style.background = color
 
-// --- stitch sizing ---
-const stitchSize = 25;
+  if (color === currentColor) btn.classList.add("selected")
 
-function createStitch(r, c) {
-  const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
-  g.setAttribute("class", "stitch-group");
-  g.dataset.row = r;
-  g.dataset.col = c;
+  btn.onclick = () => {
+    currentColor = color
+    document.querySelectorAll(".color-btn").forEach(b => b.classList.remove("selected"))
+    btn.classList.add("selected")
+  }
 
-  const w = stitchSize;
-  const h = stitchSize;
+  toolbar.appendChild(btn)
+})
 
-  g.setAttribute("transform", `translate(${c * w}, ${r * h}) scale(${w / 600})`);
-
-  const left = document.createElementNS("http://www.w3.org/2000/svg", "path");
-  const right = document.createElementNS("http://www.w3.org/2000/svg", "path");
-
-  left.setAttribute("d", LEFT_PATH);
-  right.setAttribute("d", RIGHT_PATH);
-
-  left.setAttribute("fill", "#cccccc");
-  right.setAttribute("fill", "#cccccc");
-
-  left.setAttribute("opacity", "1");
-  right.setAttribute("opacity", "1");
-
-  g.appendChild(left);
-  g.appendChild(right);
-
-  return g;
+// ---------- ROW/COLUMN LABELS ----------
+for (let c = 0; c < cols; c++) {
+  const div = document.createElement("div")
+  div.className = "label"
+  div.textContent = c + 1
+  colLabels.appendChild(div)
+}
+for (let r = 0; r < rows; r++) {
+  const div = document.createElement("div")
+  div.className = "label"
+  div.textContent = r + 1
+  rowLabels.appendChild(div)
 }
 
-function renderGrid() {
-  svg.innerHTML = "";
+// ---------- HALF PATH FROM SVG ----------
+const HALF_PATH = `
+M 595.09414,225.92349
+c -2.01305,0.41789 -3.04853,-7.02074 -3.28613,-10.60044
+c -0.2376,-3.5797 0.0797,-5.82459 -0.10601,-8.58635
+c -0.18573,-2.76176 -0.22614,-3.98514 -0.42401,-7.73833
+c -0.19787,-3.75319 0.28198,-10.07043 0.42401,-14.62861
+c 0.14203,-4.55818 0.2101,-8.58576 0.42402,-12.72054
+c 0.21392,-4.13478 -0.0386,-8.84129 0.84804,-12.08451
+c 0.88663,-3.24322 2.16459,-4.62048 3.60415,-7.20831
+c 1.43956,-2.58783 3.28726,-5.40531 5.08821,-8.26834
+c 1.80095,-2.86303 3.90689,-6.33203 5.72424,-8.90437
+c 1.81735,-2.57234 3.28081,-4.52026 5.08822,-6.57228
+c 1.80741,-2.05202 3.56763,-3.90763 5.72424,-5.72423
+c 2.15661,-1.8166 3.65918,-5.73214 7.2083,-5.08822
+c 3.54912,0.64392 5.58533,6.845 7.2083,10.60045
+c 1.62297,3.75545 2.0701,7.82719 2.54411,11.44847
+c 0.47401,3.62128 0.50902,6.98924 0.42402,10.17643
+c -0.085,3.18719 -0.36429,5.7526 -0.84804,8.90438
+c -0.48375,3.15178 -1.18098,6.28262 -2.12009,9.96441
+c -0.93911,3.68179 -1.7082,8.64212 -3.60415,12.08451
+c -1.89595,3.44239 -4.07064,6.38035 -6.14826,9.11639
+c -2.07762,2.73604 -4.1957,3.82157 -6.36027,7.20829
+c -2.16457,3.38672 -4.97732,8.77098 -7.63232,12.29652
+c -2.655,3.52554 -4.73087,6.42374 -7.20829,9.5404
+c -2.47742,3.11666 -4.55924,6.36639 -6.57229,6.78428
+Z
+`
 
+// ---------- STITCH CREATION ----------
+function createStitch(r, c) {
+  const stitch = document.createElementNS("http://www.w3.org/2000/svg", "g")
+
+  const scale = stitchSize / 120
+
+  const left = document.createElementNS("http://www.w3.org/2000/svg", "path")
+  left.setAttribute("d", HALF_PATH)
+  left.setAttribute("fill", grid[r][c])
+  left.setAttribute("stroke", "#999")
+  left.setAttribute("stroke-width", "0.5")
+  left.setAttribute("opacity", "1")
+
+  const right = document.createElementNS("http://www.w3.org/2000/svg", "path")
+  right.setAttribute("d", HALF_PATH)
+  right.setAttribute("transform", "scale(-1,1) translate(-120,0)")
+  right.setAttribute("fill", grid[r][c])
+  right.setAttribute("stroke", "#999")
+  right.setAttribute("stroke-width", "0.5")
+  right.setAttribute("opacity", "1")
+
+  const inner = document.createElementNS("http://www.w3.org/2000/svg", "g")
+  inner.setAttribute("transform", `translate(-550,-120) scale(${scale})`)
+  inner.appendChild(left)
+  inner.appendChild(right)
+
+  stitch.appendChild(inner)
+  stitch.setAttribute("transform", `translate(${c * stitchSize}, ${r * stitchSize})`)
+  stitch.dataset.row = r
+  stitch.dataset.col = c
+
+  return stitch
+}
+
+// ---------- RENDER GRID ----------
+function renderGrid() {
+  svg.innerHTML = ""
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
-      svg.appendChild(createStitch(r, c));
+      svg.appendChild(createStitch(r, c))
     }
   }
 }
 
-// labels
-function createLabels() {
-  const rowLabels = document.getElementById("row-labels");
-  const colLabels = document.getElementById("col-labels");
+renderGrid()
 
-  for (let c = 0; c < cols; c++) {
-    const d = document.createElement("div");
-    d.className = "label";
-    d.textContent = c + 1;
-    colLabels.appendChild(d);
-  }
+// ---------- PAINTING ----------
+let isMouseDown = false
+svg.addEventListener("mousedown", () => isMouseDown = true)
+svg.addEventListener("mouseup", () => isMouseDown = false)
+svg.addEventListener("mouseleave", () => isMouseDown = false)
 
-  for (let r = 0; r < rows; r++) {
-    const d = document.createElement("div");
-    d.className = "label";
-    d.textContent = r + 1;
-    rowLabels.appendChild(d);
-  }
+function paint(target) {
+  const stitch = target.closest("g")
+  if (!stitch) return
+
+  const r = stitch.dataset.row
+  const c = stitch.dataset.col
+  if (r === undefined || c === undefined) return
+
+  grid[r][c] = currentColor
+  stitch.querySelectorAll("path").forEach(p => p.setAttribute("fill", currentColor))
 }
 
-// click handling
 svg.addEventListener("click", (e) => {
-  const stitch = e.target.closest("g.stitch-group");
-  if (!stitch) return;
-
-  stitch.querySelectorAll("path").forEach(p => {
-    p.setAttribute("fill", currentColor);
-  });
-});
-
-// init
-createLabels();
-renderGrid();
+  paint(e.target)
+})
+svg.addEventListener("mousemove", (e) => {
+  if (!isMouseDown) return
+  paint(e.target)
+})
 
 </script>
 
