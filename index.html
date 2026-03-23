@@ -1,157 +1,170 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Knit Chart Editor</title>
+<meta charset="UTF-8" />
+<title>Knit Stitch Grid (Locked Layout)</title>
 
 <style>
   body {
-    font-family: sans-serif;
+    margin: 0;
     background: #f5f5f5;
-    text-align: center;
+    font-family: sans-serif;
   }
 
-  h1 {
-    margin-top: 20px;
-  }
-
-  #toolbar {
-    margin: 15px;
-  }
-
-  .color-btn {
-    width: 30px;
-    height: 30px;
-    border: 2px solid #333;
-    margin: 3px;
-    cursor: pointer;
-    display: inline-block;
-  }
-
-  .selected {
-    outline: 3px solid black;
-  }
-
-  #chart {
+  #controls {
+    position: fixed;
+    top: 10px;
+    left: 10px;
     background: white;
-    border: 1px solid #ccc;
+    padding: 10px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    z-index: 10;
+    width: 220px;
+  }
+
+  label {
+    font-size: 12px;
+    display: block;
+    margin-top: 8px;
+  }
+
+  input {
+    width: 100%;
+  }
+
+  svg {
+    display: block;
+    margin: auto;
+    background: white;
   }
 </style>
 </head>
 
 <body>
 
-<h1>Knit Chart Editor</h1>
+<div id="controls">
+  <label>Gauge Scale: <span id="scaleVal"></span></label>
+  <input type="range" id="scale" min="0.5" max="4" value="1" step="0.1">
 
-<div id="toolbar"></div>
+  <label>Fill Color:</label>
+  <input type="color" id="color" value="#ff0000">
+</div>
 
-<svg id="chart" width="600" height="600"></svg>
+<svg id="canvas" width="900" height="700" viewBox="0 0 900 700"></svg>
 
 <script>
-const rows = 30
-const cols = 30
-const stitchSize = 18
+const svgNS = "http://www.w3.org/2000/svg";
+const svg = document.getElementById("canvas");
 
-const colors = ["#ffffff", "#d62828", "#1d3557", "#2a9d8f", "#f4a261"]
-let currentColor = colors[1]
+/* ===== LOCKED BASE PARAMETERS ===== */
+const BASE_STITCH_SIZE = 97;
+const BASE_ROW_SPACING = 0.79;
+const BASE_INTERNAL_SCALE = 4;
 
-// grid data
-let grid = Array.from({length: rows}, () => Array(cols).fill(colors[0]))
+/* ===== STITCH PATH ===== */
+const stitchPathData = `
+m 0,0
+c 0.0161,-1.85405 0.0151,-3.71528 -0.0418,-5.56693
+-0.21376,-1.60508 -0.82301,-3.15569 -1.71114,-4.50377
+-0.83955,-1.20233 -1.8919,0.15882 -2.47536,0.86493
+-0.75126,0.76503 -1.39814,1.63108 -2.0184,2.506
+-1.09808,1.67485 -2.19951,3.34692 -3.40046,4.94991
+-0.46098,0.96625 -1.19549,1.81042 -1.24952,2.91779
+-0.33647,1.91326 -0.25331,3.86606 -0.51202,5.7905
+-0.14293,2.12408 -0.18126,4.25548 0.007,6.37822
+-0.084,1.46207 0.009,2.94939 0.57817,4.31714
+0.52977,0.82075 1.22534,-1.23227 1.77945,-1.62912
+1.41695,-1.79237 2.33146,-3.93561 3.87033,-5.63961
+0.80261,-0.8534 1.56054,-1.79847 2.48679,-2.50545
+C -1.70964,6.6598 -1.02979,5.2123 -0.78582,3.66371
+-0.50364,2.44765 -0.16887,1.23842 0,0
+Z
+m -23.25957,0
+c -0.0161,-1.85405 -0.0151,-3.71528 0.0417,-5.56693
+0.21375,-1.60508 0.82301,-3.15569 1.71114,-4.50377
+0.83955,-1.20233 1.8919,0.15882 2.47539,0.86493
+0.75123,0.76503 1.39811,1.63108 2.01837,2.506
+1.09807,1.67485 2.19951,3.34692 3.40045,4.94991
+0.46098,0.96625 1.19549,1.81042 1.24952,2.91779
+0.33647,1.91326 0.25331,3.86606 0.51202,5.7905
+0.14291,2.12408 0.18124,4.25548 -0.007,6.37822
+0.0839,1.46207 -0.009,2.94939 -0.57817,4.31714
+-0.52975,0.82075 -1.22531,-1.23227 -1.77945,-1.62912
+-1.41695,-1.79237 -2.33146,-3.93561 -3.87033,-5.63961
+-0.80259,-0.8534 -1.56054,-1.79847 -2.48676,-2.50545
+C -21.55001,6.6598 -22.22989,5.2123 -22.47383,3.66371
+-22.75604,2.44765 -23.09081,1.23842 -23.25988,0
+Z
+`;
 
-const svg = document.getElementById("chart")
-const toolbar = document.getElementById("toolbar")
+function renderGrid() {
+  svg.innerHTML = "";
 
-// ---------- COLOR PALETTE ----------
-colors.forEach(color => {
-  const btn = document.createElement("div")
-  btn.className = "color-btn"
-  btn.style.background = color
+  const color = document.getElementById("color").value;
+  const userScale = parseFloat(document.getElementById("scale").value);
 
-  if (color === currentColor) btn.classList.add("selected")
+  document.getElementById("scaleVal").textContent = userScale;
 
-  btn.onclick = () => {
-    currentColor = color
-    document.querySelectorAll(".color-btn").forEach(b => b.classList.remove("selected"))
-    btn.classList.add("selected")
+  const rows = 6;
+  const cols = 10;
+
+  const canvasWidth = 900;
+  const canvasHeight = 700;
+
+  const stitchSize = BASE_STITCH_SIZE;
+  const rowSpacing = BASE_ROW_SPACING;
+
+  const gridWidth = (cols - 1) * stitchSize;
+  const gridHeight = (rows - 1) * stitchSize * rowSpacing;
+
+  const offsetX = (canvasWidth - gridWidth) / 2;
+  const offsetY = (canvasHeight - gridHeight) / 2;
+
+  // Root group = behaves like grouped object (Inkscape-style)
+  const rootGroup = document.createElementNS(svgNS, "g");
+
+  rootGroup.setAttribute(
+    "transform",
+    `translate(${offsetX}, ${offsetY}) scale(${userScale})`
+  );
+
+  svg.appendChild(rootGroup);
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+
+      const group = document.createElementNS(svgNS, "g");
+
+      const path = document.createElementNS(svgNS, "path");
+      path.setAttribute("d", stitchPathData);
+
+      // Stroke ALWAYS black
+      path.setAttribute("stroke", "black");
+
+      // Fill controlled by user
+      path.setAttribute("fill", color);
+
+      group.appendChild(path);
+
+      // Locked spacing
+      group.setAttribute(
+        "transform",
+        `translate(${c * stitchSize}, ${r * stitchSize * rowSpacing})`
+      );
+
+      rootGroup.appendChild(group);
+    }
   }
-
-  toolbar.appendChild(btn)
-})
-
-// ---------- STITCH SHAPE ----------
-function createStitchPath() {
-  // Simple knit-like "V" shape
-  return `
-    M ${stitchSize/2} ${stitchSize*0.1}
-    C ${stitchSize*0.9} ${stitchSize*0.2},
-      ${stitchSize*0.9} ${stitchSize*0.8},
-      ${stitchSize/2} ${stitchSize*0.95}
-    C ${stitchSize*0.1} ${stitchSize*0.8},
-      ${stitchSize*0.1} ${stitchSize*0.2},
-      ${stitchSize/2} ${stitchSize*0.1}
-    Z
-  `
 }
 
-// ---------- BUILD GRID ----------
-for (let r = 0; r < rows; r++) {
-  for (let c = 0; c < cols; c++) {
+/* Controls */
+document.querySelectorAll("input").forEach(input => {
+  input.addEventListener("input", renderGrid);
+});
 
-    const stitch = document.createElementNS("http://www.w3.org/2000/svg", "path")
-
-    stitch.setAttribute("d", createStitchPath())
-    stitch.setAttribute("fill", grid[r][c])
-    stitch.setAttribute("stroke", "#999")
-    stitch.setAttribute("stroke-width", "0.5")
-
-    // slight overlap for realism
-    stitch.setAttribute(
-      "transform",
-      `translate(${c * stitchSize}, ${r * stitchSize * 0.9})`
-    )
-
-    stitch.dataset.row = r
-    stitch.dataset.col = c
-
-    svg.appendChild(stitch)
-  }
-}
-
-// ---------- CLICK HANDLING ----------
-svg.addEventListener("click", (e) => {
-  if (e.target.tagName !== "path") return
-
-  const r = e.target.dataset.row
-  const c = e.target.dataset.col
-
-  grid[r][c] = currentColor
-  e.target.setAttribute("fill", currentColor)
-})
-
-// ---------- OPTIONAL: DRAG PAINT ----------
-let isMouseDown = false
-
-svg.addEventListener("mousedown", () => isMouseDown = true)
-svg.addEventListener("mouseup", () => isMouseDown = false)
-svg.addEventListener("mouseleave", () => isMouseDown = false)
-
-svg.addEventListener("mousemove", (e) => {
-  if (!isMouseDown) return
-  if (e.target.tagName !== "path") return
-
-  const r = e.target.dataset.row
-  const c = e.target.dataset.col
-
-  grid[r][c] = currentColor
-  e.target.setAttribute("fill", currentColor)
-})
-
-// ---------- SAVE FUNCTION ----------
-function exportPattern() {
-  const data = JSON.stringify(grid)
-  console.log(data)
-}
-
+/* Initial render */
+renderGrid();
 </script>
 
 </body>
